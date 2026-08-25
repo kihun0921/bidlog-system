@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>입찰일지 자동화 시스템</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#1F3A5F;
+    --navy-deep:#132840;
+    --paper:#F5F6F3;
+    --paper-line:#E3E6E1;
+    --ink:#1B1F23;
+    --ink-soft:#5B6470;
+    --amber:#D9932E;
+    --amber-deep:#B87418;
+    --risk-low:#4C8C6B;
+    --risk-high:#C1443C;
+    --mono: ui-monospace, SFMono-Regular, "IBM Plex Mono", Consolas, monospace;
+    --sans: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  .shell{max-width:1180px;margin:0 auto;padding:32px 28px 90px;}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:3px solid var(--ink);padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap;gap:10px;}
+  .head h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.01em;}
+  .head .sub{font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.04em;}
+
+  .card{background:#fff;border:1px solid var(--paper-line);padding:20px 22px;margin-bottom:16px;}
+  .card h3{font-size:13px;margin:0 0 14px;font-weight:800;display:flex;align-items:center;gap:8px;letter-spacing:.02em;}
+  .card h3 .tag{font-family:var(--mono);font-size:10px;background:var(--navy);color:#fff;padding:2px 7px;}
+
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;}
+  .row:last-child{margin-bottom:0;}
+  .field{display:flex;flex-direction:column;gap:5px;min-width:150px;}
+  .field.grow{flex:1;}
+  label{font-size:11px;font-weight:700;color:var(--ink-soft);letter-spacing:.02em;}
+  input[type=text],input[type=date],input[type=number],select{
+    border:1px solid #D3D7D2;background:#FCFDFB;padding:8px 9px;font-size:13px;font-family:var(--sans);color:var(--ink);min-width:0;
+  }
+  input:focus,select:focus{outline:2px solid var(--amber);outline-offset:1px;border-color:var(--amber);}
+  .quickbar{display:flex;gap:6px;flex-wrap:wrap;}
+  .quickbtn{font-family:var(--mono);font-size:11px;background:var(--paper);border:1px solid #D3D7D2;padding:5px 10px;cursor:pointer;color:var(--ink-soft);}
+  .quickbtn:hover{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .checkline{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);}
+
+  .btn{font-family:var(--sans);font-weight:700;font-size:13px;border:none;cursor:pointer;padding:10px 20px;background:var(--ink);color:#fff;}
+  .btn:hover{background:#000;}
+  .btn.primary{background:var(--amber-deep);}
+  .btn.primary:hover{background:#9A5E10;}
+  .btn.green{background:var(--risk-low);}
+  .btn.green:hover{background:#3B6E53;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  .note{font-size:12px;color:var(--ink-soft);background:#FBF6EC;border-left:3px solid var(--amber);padding:9px 12px;margin-bottom:14px;line-height:1.6;}
+  .err{font-size:12px;color:#7A2B26;background:#FBEEEC;border-left:3px solid var(--risk-high);padding:9px 12px;margin:10px 0;line-height:1.6;}
+
+  .chipbar{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0;}
+  .chip{font-family:var(--mono);font-size:11px;background:var(--navy-deep);color:#EAF0F6;padding:5px 10px;}
+  .chip.empty{background:transparent;color:var(--ink-soft);border:1px dashed #D3D7D2;}
+
+  .resulthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;}
+  .resulthead .count{font-family:var(--mono);font-size:12px;color:var(--ink-soft);}
+
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th,td{border:1px solid var(--paper-line);padding:7px 8px;text-align:left;white-space:nowrap;}
+  th{background:var(--navy);color:#fff;font-family:var(--mono);font-size:10px;letter-spacing:.03em;text-transform:uppercase;position:sticky;top:0;}
+  tr:nth-child(even) td{background:#FAFBF9;}
+  td.num{text-align:right;font-family:var(--mono);}
+  .tablewrap{overflow-x:auto;border:1px solid var(--paper-line);max-height:560px;overflow-y:auto;}
+  .rawtoggle{font-family:var(--mono);font-size:10px;color:var(--navy);cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;}
+  .rawrow td{background:#101418 !important;color:#B7D0EA;font-family:var(--mono);font-size:11px;white-space:pre-wrap;padding:12px;}
+
+  @media (max-width:700px){
+    .row{flex-direction:column;align-items:stretch;}
+    .field{min-width:0;}
+  }
+</style>
+</head>
+<body>
+<div class="shell" id="app"></div>
+
+<script>
+/* ============================================================
+   상수 — 업종/지역 목록. G2B 전체 분류 API까지는 연결하지 않고,
+   실무에서 가장 자주 쓰는 면허 종류·시도 단위로 구성했다.
+   필요한 항목이 없으면 select의 option을 자유롭게 추가하면 된다.
+   ============================================================ */
+const INDUSTRY_OPTIONS = [
+  { v:"", l:"선택 안 함" },
+  { v:"토목", l:"토목공사업" },
+  { v:"건축", l:"건축공사업" },
+  { v:"실내건축", l:"실내건축공사업" },
+  { v:"산업환경설비", l:"산업·환경설비공사업" },
+  { v:"조경", l:"조경공사업" },
+  { v:"지반조성포장", l:"지반조성·포장공사업" },
+  { v:"전기", l:"전기공사업" },
+  { v:"정보통신", l:"정보통신공사업" },
+  { v:"소방시설", l:"소방시설공사업" },
+  { v:"수도시설", l:"수도시설공사업" },
+  { v:"철근콘크리트", l:"철근·콘크리트공사업" },
+  { v:"금속창호", l:"금속창호·지붕건축물조립공사업" },
+  { v:"기계설비", l:"기계설비·가스공사업" },
+  { v:"도장습식방수석공사", l:"도장·습식·방수·석공사업" },
+];
+const REGION_OPTIONS = [
+  "", "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
+  "대전광역시", "울산광역시", "세종특별자치시", "경기도", "강원특별자치도",
+  "충청북도", "충청남도", "전북특별자치도", "전라남도", "경상북도", "경상남도", "제주특별자치도",
+];
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const todayStr = () => new Date().toISOString().slice(0, 10);
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+
+const state = {
+  proxyBase: "http://localhost:8788",
+  dateType: "open",
+  startDate: todayStr(),
+  endDate: todayStr(),
+  industries: ["", "", ""],
+  regions: ["", "", ""],
+  excludeInHouse: false,
+  strictIndustry: false,
+  priceType: "presmptPrce",
+  priceMin: "",
+  priceMax: "",
+  sort: "reg",
+  excludeKeyword: "",
+  loading: false,
+  error: "",
+  items: [],
+  expandedRow: null,
+};
+
+/* ============================================================
+   API
+   ============================================================ */
+async function fetchBidlog(){
+  state.loading = true; state.error = ""; render();
+  try{
+    const url = new URL(state.proxyBase.replace(/\/$/,"") + "/api/bidlog");
+    url.searchParams.set("dateType", state.dateType);
+    url.searchParams.set("startDate", state.startDate);
+    url.searchParams.set("endDate", state.endDate);
+    const inds = state.industries.filter(Boolean).join(",");
+    if(inds) url.searchParams.set("industries", inds);
+    if(state.strictIndustry) url.searchParams.set("strictIndustry", "1");
+    const regs = state.regions.filter(Boolean).join(",");
+    if(regs) url.searchParams.set("region", regs);
+    if(state.excludeInHouse) url.searchParams.set("excludeInHouse", "1");
+    url.searchParams.set("priceType", state.priceType);
+    if(state.priceMin) url.searchParams.set("priceMin", state.priceMin);
+    if(state.priceMax) url.searchParams.set("priceMax", state.priceMax);
+    if(state.excludeKeyword) url.searchParams.set("excludeKeyword", state.excludeKeyword);
+    url.searchParams.set("sort", state.sort);
+
+    const res = await fetch(url.toString());
+    const data = await res.json();
+    if(!data.ok){
+      state.error = "프록시 응답 오류: " + (data.error || "알 수 없는 오류");
+      state.items = [];
+    } else {
+      state.items = data.items;
+      if(state.items.length === 0) state.error = "조건에 맞는 공고가 없습니다. 기간이나 필터를 조정해 보세요.";
+    }
+  }catch(e){
+    state.error = `프록시 서버(${state.proxyBase})에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.`;
+    state.items = [];
+  }
+  state.loading = false;
+  render();
+}
+
+/* ============================================================
+   EXCEL EXPORT
+   ============================================================ */
+function exportExcel(){
+  if(state.items.length === 0){ alert("내보낼 데이터가 없습니다. 먼저 조회하세요."); return; }
+  const header = ["번호","게시일","개찰일시","공고명","공고번호","발주기관","추정가격","기초금액","참가마감일시","투찰마감일시","업종제한","지역제한"];
+  const rows = state.items.map((it, i) => [
+    i+1, it.게시일, it.개찰일시, it.공고명, it.공고번호, it.발주기관,
+    it.추정가격 ?? "", it.기초금액 ?? "", it.참가마감일시, it.투찰마감일시, it.업종제한, it.지역제한
+  ]);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["올케어솔루션 나라장터 입찰일지", ...Array(11).fill("")],
+    header,
+    ...rows
+  ]);
+  ws["!merges"] = [{ s:{r:0,c:0}, e:{r:0,c:11} }];
+  ws["!cols"] = header.map(()=>({wch:16}));
+  XLSX.utils.book_append_sheet(wb, ws, "입찰일지");
+  const filename = `나라장터_입찰일지_${todayStr().replace(/-/g,"")}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+/* ============================================================
+   RENDER HELPERS
+   ============================================================ */
+function el(html){ const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstElementChild; }
+function fmtMoney(n){ return n==null ? "—" : Number(n).toLocaleString()+"원"; }
+
+function activeFilterChips(){
+  const chips = [];
+  chips.push(`${state.dateType==="reg"?"게시일":state.dateType==="open"?"개찰일":"투찰마감일"}: ${state.startDate} ~ ${state.endDate}`);
+  const inds = state.industries.filter(Boolean);
+  if(inds.length) chips.push("업종: " + inds.join(" / ") + (state.strictIndustry ? " (정보없음 제외)" : " (정보없음 포함)"));
+  const regs = state.regions.filter(Boolean);
+  if(regs.length) chips.push("지역: " + regs.join(" / "));
+  if(state.excludeInHouse) chips.push("관내공고 제외");
+  if(state.priceMin || state.priceMax){
+    const label = state.priceType === "bssamt" ? "기초금액" : "추정가격";
+    chips.push(`${label}: ${state.priceMin?Number(state.priceMin).toLocaleString():"0"}원 ~ ${state.priceMax?Number(state.priceMax).toLocaleString():"제한없음"}`);
+  }
+  if(state.excludeKeyword) chips.push("제외어: " + state.excludeKeyword);
+  chips.push("정렬: " + (state.sort==="open"?"개찰일순":"게시일순"));
+  return chips;
+}
+
+/* ============================================================
+   MAIN RENDER
+   ============================================================ */
+function render(){
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+
+  app.appendChild(el(`
+    <div class="head">
+      <h1>입찰일지 자동화 시스템</h1>
+      <div class="sub">나라장터(G2B) 검색조건 조회 → 엑셀 생산</div>
+    </div>
+  `));
+
+  // A. 프록시 서버
+  const proxyCard = el(`
+    <div class="card">
+      <h3><span class="tag">A</span>프록시 서버 연결</h3>
+      <div class="note">서비스키는 브라우저 화면이 아닌 프록시 서버(.env)에만 보관합니다. bidlog-server/README.md를 참고해 서버를 먼저 실행하세요.</div>
+      <div class="row">
+        <div class="field grow">
+          <label>프록시 서버 주소</label>
+          <input type="text" id="proxyInput" value="${state.proxyBase}" placeholder="http://localhost:8788">
+        </div>
+      </div>
+    </div>
+  `);
+  proxyCard.querySelector("#proxyInput").oninput = e=> state.proxyBase = e.target.value.trim();
+  app.appendChild(proxyCard);
+
+  // B. 검색조건
+  app.appendChild(renderFilterCard());
+
+  // C. 결과
+  app.appendChild(renderResultCard());
+}
+
+function renderFilterCard(){
+  const card = el(`
+    <div class="card">
+      <h3><span class="tag">B</span>검색조건</h3>
+
+      <div class="row">
+        <div class="field grow">
+          <button class="quickbtn" id="btnTodayOpen" style="background:var(--navy);color:#fff;border-color:var(--navy);padding:8px 14px;">
+            ⚡ 오늘 개찰 공고 (가장 많이 쓰는 조건: 개찰일=오늘)
+          </button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>날짜 기준</label>
+          <select id="dateType">
+            <option value="reg" ${state.dateType==="reg"?"selected":""}>입력일(게시일)</option>
+            <option value="open" ${state.dateType==="open"?"selected":""}>개찰일</option>
+            <option value="close" ${state.dateType==="close"?"selected":""}>투찰마감일</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>시작일</label>
+          <input type="date" id="startDate" value="${state.startDate}">
+        </div>
+        <div class="field">
+          <label>종료일</label>
+          <input type="date" id="endDate" value="${state.endDate}">
+        </div>
+        <div class="field">
+          <label>빠른 선택</label>
+          <div class="quickbar">
+            <button class="quickbtn" data-range="0">오늘</button>
+            <button class="quickbtn" data-range="30">1개월</button>
+            <button class="quickbtn" data-range="90">3개월</button>
+            <button class="quickbtn" data-range="180">6개월</button>
+            <button class="quickbtn" data-range="365">12개월</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field grow">
+          <label>업종 선택 01/02/03 (OR) — 실제 주공종·부공종 필드 기준입니다.</label>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <select data-ind="0">${industryOptionsHtml(state.industries[0])}</select>
+        </div>
+        <div class="field">
+          <select data-ind="1">${industryOptionsHtml(state.industries[1])}</select>
+        </div>
+        <div class="field">
+          <select data-ind="2">${industryOptionsHtml(state.industries[2])}</select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <span class="checkline" title="소액수의계약 등 상당수 공고는 업종 정보 자체가 API에 없습니다. 체크하면 그런 공고를 결과에서 제외합니다(기본: 포함).">
+            <input type="checkbox" id="strictIndustry" ${state.strictIndustry?"checked":""}> 업종 정보없음 공고 제외(엄격 모드)
+          </span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>지역 선택 01 (OR)</label>
+          <select data-reg="0">${regionOptionsHtml(state.regions[0])}</select>
+        </div>
+        <div class="field">
+          <label>지역 선택 02</label>
+          <select data-reg="1">${regionOptionsHtml(state.regions[1])}</select>
+        </div>
+        <div class="field">
+          <label>지역 선택 03</label>
+          <select data-reg="2">${regionOptionsHtml(state.regions[2])}</select>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <span class="checkline"><input type="checkbox" id="excludeInHouse" ${state.excludeInHouse?"checked":""}> 관내공고 제외</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>가격 기준</label>
+          <select id="priceType">
+            <option value="presmptPrce" ${state.priceType==="presmptPrce"?"selected":""}>추정가격</option>
+            <option value="bssamt" ${state.priceType==="bssamt"?"selected":""}>기초금액</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>이상 (원)</label>
+          <input type="number" id="priceMin" value="${state.priceMin}" placeholder="0">
+        </div>
+        <div class="field">
+          <label>미만 (원)</label>
+          <input type="number" id="priceMax" value="${state.priceMax}" placeholder="제한없음">
+        </div>
+        <div class="field">
+          <label>빠른 선택 (이상)</label>
+          <div class="quickbar">
+            <button class="quickbtn" data-price="100000000">1억</button>
+            <button class="quickbtn" data-price="200000000">2억</button>
+            <button class="quickbtn" data-price="500000000">5억</button>
+            <button class="quickbtn" data-price="1000000000">10억</button>
+            <button class="quickbtn" data-price="5000000000">50억</button>
+            <button class="quickbtn" data-price="10000000000">100억</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>정렬기준</label>
+          <select id="sort">
+            <option value="reg" ${state.sort==="reg"?"selected":""}>게시일순</option>
+            <option value="open" ${state.sort==="open"?"selected":""}>개찰일순</option>
+          </select>
+        </div>
+        <div class="field grow">
+          <label>제외 키워드 (공고명 기준, 콤마로 구분)</label>
+          <input type="text" id="excludeKeyword" value="${state.excludeKeyword}" placeholder="예: 수의, 소액">
+        </div>
+      </div>
+
+      <div class="chipbar" id="chipbar"></div>
+
+      <div class="row">
+        <button class="btn primary" id="btnSearch" ${state.loading?"disabled":""}>${state.loading? "조회 중…" : "나라장터 조회"}</button>
+        <button class="btn green" id="btnExcel">엑셀 다운로드</button>
+      </div>
+      <div id="errBox"></div>
+    </div>
+  `);
+
+  card.querySelector("#btnTodayOpen").onclick = ()=>{
+    state.dateType = "open";
+    state.startDate = todayStr();
+    state.endDate = todayStr();
+    render();
+    fetchBidlog();
+  };
+  card.querySelector("#dateType").onchange = e=> { state.dateType = e.target.value; render(); };
+  card.querySelector("#startDate").onchange = e=> { state.startDate = e.target.value; render(); };
+  card.querySelector("#endDate").onchange = e=> { state.endDate = e.target.value; render(); };
+  card.querySelectorAll("[data-range]").forEach(btn=>{
+    btn.onclick = ()=>{
+      const n = parseInt(btn.dataset.range,10);
+      state.endDate = todayStr();
+      state.startDate = n===0 ? todayStr() : addDays(new Date(), -n);
+      render();
+    };
+  });
+  card.querySelectorAll("[data-ind]").forEach(sel=>{
+    sel.onchange = e=>{ state.industries[parseInt(sel.dataset.ind,10)] = e.target.value; render(); };
+  });
+  card.querySelectorAll("[data-reg]").forEach(sel=>{
+    sel.onchange = e=>{ state.regions[parseInt(sel.dataset.reg,10)] = e.target.value; render(); };
+  });
+  card.querySelector("#excludeInHouse").onchange = e=> { state.excludeInHouse = e.target.checked; render(); };
+  card.querySelector("#strictIndustry").onchange = e=> { state.strictIndustry = e.target.checked; render(); };
+  card.querySelector("#priceType").onchange = e=> { state.priceType = e.target.value; render(); };
+  card.querySelector("#priceMin").oninput = e=> state.priceMin = e.target.value;
+  card.querySelector("#priceMax").oninput = e=> state.priceMax = e.target.value;
+  card.querySelectorAll("[data-price]").forEach(btn=>{
+    btn.onclick = ()=>{ state.priceMin = btn.dataset.price; render(); };
+  });
+  card.querySelector("#sort").onchange = e=> { state.sort = e.target.value; render(); };
+  card.querySelector("#excludeKeyword").oninput = e=> state.excludeKeyword = e.target.value;
+  card.querySelector("#btnSearch").onclick = fetchBidlog;
+  card.querySelector("#btnExcel").onclick = exportExcel;
+
+  const chipbar = card.querySelector("#chipbar");
+  activeFilterChips().forEach(c=> chipbar.appendChild(el(`<span class="chip">${c}</span>`)));
+
+  const errBox = card.querySelector("#errBox");
+  if(state.error) errBox.appendChild(el(`<div class="err">${state.error}</div>`));
+
+  return card;
+}
+
+function industryOptionsHtml(selected){
+  return INDUSTRY_OPTIONS.map(o=>`<option value="${o.v}" ${o.v===selected?"selected":""}>${o.l}</option>`).join("");
+}
+function regionOptionsHtml(selected){
+  return REGION_OPTIONS.map(v=>`<option value="${v}" ${v===selected?"selected":""}>${v || "선택 안 함"}</option>`).join("");
+}
+
+function renderResultCard(){
+  const card = el(`
+    <div class="card">
+      <div class="resulthead">
+        <h3 style="margin:0;"><span class="tag">C</span>조회 결과</h3>
+        <span class="count">${state.items.length}건</span>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>번호</th><th>게시일</th><th>개찰일시</th><th>공고명</th><th>공고번호</th>
+              <th>발주기관</th><th>추정가격</th><th>기초금액</th><th>참가마감</th><th>투찰마감</th>
+              <th>업종제한</th><th>지역제한</th><th>원본</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  `);
+
+  const tbody = card.querySelector("#tbody");
+  if(state.items.length === 0){
+    tbody.appendChild(el(`<tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">조회된 데이터가 없습니다. 위에서 검색조건을 설정하고 "나라장터 조회"를 눌러주세요.</td></tr>`));
+  } else {
+    state.items.forEach((it, i)=>{
+      const tr = el(`
+        <tr>
+          <td>${i+1}</td>
+          <td style="white-space:normal;">${it.게시일 || "—"}</td>
+          <td style="white-space:normal;">${it.개찰일시 || "—"}</td>
+          <td style="white-space:normal;max-width:260px;">${it.공고명}</td>
+          <td>${it.공고번호}</td>
+          <td style="white-space:normal;">${it.발주기관}</td>
+          <td class="num">${fmtMoney(it.추정가격)}</td>
+          <td class="num">${fmtMoney(it.기초금액)}</td>
+          <td style="white-space:normal;">${it.참가마감일시 || "—"}</td>
+          <td style="white-space:normal;">${it.투찰마감일시 || "—"}</td>
+          <td>${it.업종제한 === "정보없음" ? '<span style="color:var(--amber-deep);">정보없음</span>' : it.업종제한}</td>
+          <td>${it.지역제한 || "—"}</td>
+          <td><button class="rawtoggle" data-idx="${i}">보기</button></td>
+        </tr>
+      `);
+      tr.querySelector(".rawtoggle").onclick = ()=>{
+        state.expandedRow = state.expandedRow === i ? null : i;
+        render();
+      };
+      tbody.appendChild(tr);
+      if(state.expandedRow === i){
+        tbody.appendChild(el(`<tr class="rawrow"><td colspan="13">${JSON.stringify(it.raw, null, 2)}</td></tr>`));
+      }
+    });
+  }
+
+  return card;
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+render();
+</script>
+</body>
+</html>

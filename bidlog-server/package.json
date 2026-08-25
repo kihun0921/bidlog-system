@@ -1,0 +1,16 @@
+{
+  "name": "bidlog-proxy",
+  "version": "1.0.0",
+  "description": "나라장터(G2B) 입찰공고를 검색조건별로 조회해 엑셀용 데이터를 만들어주는 프록시 서버",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

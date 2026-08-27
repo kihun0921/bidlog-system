@@ -59,6 +59,16 @@
   .chip{font-family:var(--mono);font-size:11px;background:var(--navy-deep);color:#EAF0F6;padding:5px 10px;}
   .chip.empty{background:transparent;color:var(--ink-soft);border:1px dashed #D3D7D2;}
 
+  .tabbar{display:flex;flex-wrap:wrap;gap:0;border-bottom:2px solid var(--navy);margin-bottom:14px;}
+  .companytab{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--paper-line);border-bottom:none;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-soft);position:relative;top:2px;white-space:nowrap;}
+  .companytab:hover:not(.active){background:#EEF1EE;color:var(--ink);}
+  .companytab.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .companytab .del{font-family:var(--mono);font-size:11px;opacity:0;transition:opacity .12s;cursor:pointer;padding:1px 5px;border-radius:50%;color:inherit;}
+  .companytab:hover .del{opacity:.55;}
+  .companytab .del:hover{opacity:1 !important;background:var(--risk-high);color:#fff;}
+  .addtab{display:inline-flex;align-items:center;justify-content:center;padding:10px 18px;cursor:pointer;font-size:15px;font-weight:800;color:var(--ink-soft);background:transparent;border:1px dashed #D3D7D2;border-bottom:none;position:relative;top:2px;}
+  .addtab:hover{background:#EEF1EE;color:var(--navy);border-color:var(--navy);}
+
   .resulthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;}
   .resulthead .count{font-family:var(--mono);font-size:12px;color:var(--ink-soft);}
 
@@ -107,7 +117,7 @@ const INDUSTRY_OPTIONS = [
   { v:"도장습식방수석공사", l:"도장·습식·방수·석공사업" },
 ];
 const REGION_OPTIONS = [
-  "", "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
+  "", "전국", "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
   "대전광역시", "울산광역시", "세종특별자치시", "경기도", "강원특별자치도",
   "충청북도", "충청남도", "전북특별자치도", "전라남도", "경상북도", "경상남도", "제주특별자치도",
 ];
@@ -142,13 +152,56 @@ const state = {
   error: "",
   items: [],
   expandedRow: null,
+  companies: [],       // 회사별 탭. 각 항목: {id, name, filters:{...}}
+  activeCompanyId: "", // 현재 선택된 탭. ""이면 임시(어느 탭에도 속하지 않은) 조건 사용중.
 };
+
+/* ============================================================
+   회사 탭 — 검색조건을 회사별로 저장/불러오기 (localStorage)
+   날짜 범위(dateType/startDate/endDate)는 매번 새로 고르는 값이라
+   탭 저장 대상에서 제외하고, 업종/지역/가격/정렬 등만 저장한다.
+   ============================================================ */
+const COMPANY_FILTER_KEYS = [
+  "industries", "regions", "excludeInHouse", "strictIndustry",
+  "priceType", "priceMin", "priceMax", "sort", "excludeKeyword",
+];
+function getFilterSnapshot(){
+  const snap = {};
+  COMPANY_FILTER_KEYS.forEach(k=>{
+    const v = state[k];
+    snap[k] = Array.isArray(v) ? [...v] : v;
+  });
+  return snap;
+}
+function applyFilterSnapshot(snap){
+  if(!snap) return;
+  COMPANY_FILTER_KEYS.forEach(k=>{
+    if(snap[k] === undefined) return;
+    state[k] = Array.isArray(snap[k]) ? [...snap[k]] : snap[k];
+  });
+}
+function saveCompanies(){ localStorage.setItem("bidlog_companies", JSON.stringify(state.companies)); }
+function saveActiveCompanyId(){ localStorage.setItem("bidlog_activeCompanyId", state.activeCompanyId || ""); }
+
+(function loadCompaniesFromStorage(){
+  try{
+    state.companies = JSON.parse(localStorage.getItem("bidlog_companies") || "[]");
+  }catch(e){
+    state.companies = [];
+  }
+  const savedActiveId = localStorage.getItem("bidlog_activeCompanyId") || "";
+  const active = state.companies.find(c => c.id === savedActiveId);
+  if(active){
+    state.activeCompanyId = active.id;
+    applyFilterSnapshot(active.filters);
+  }
+})();
 
 /* ============================================================
    API
    ============================================================ */
 async function fetchBidlog(){
-  state.loading = true; state.error = ""; render();
+  state.loading = true; state.error = ""; renderAll();
   try{
     const url = new URL(state.proxyBase.replace(/\/$/,"") + "/api/bidlog");
     url.searchParams.set("dateType", state.dateType);
@@ -180,7 +233,7 @@ async function fetchBidlog(){
     state.items = [];
   }
   state.loading = false;
-  render();
+  renderAll();
 }
 
 /* ============================================================
@@ -188,6 +241,7 @@ async function fetchBidlog(){
    ============================================================ */
 function exportExcel(){
   if(state.items.length === 0){ alert("내보낼 데이터가 없습니다. 먼저 조회하세요."); return; }
+  const activeCo = state.companies.find(c => c.id === state.activeCompanyId);
   const header = ["번호","게시일","개찰일시","공고명","공고번호","발주기관","추정가격","기초금액","참가마감일시","투찰마감일시","업종제한","지역제한","공고상태"];
   const rows = state.items.map((it, i) => [
     i+1, it.게시일, it.개찰일시, it.공고명, it.공고번호, it.발주기관,
@@ -195,15 +249,19 @@ function exportExcel(){
     it.취소여부 ? "취소" : "정상"
   ]);
   const wb = XLSX.utils.book_new();
+  const titleText = activeCo
+    ? `올케어솔루션 나라장터 입찰일지 — ${activeCo.name}`
+    : "올케어솔루션 나라장터 입찰일지";
   const ws = XLSX.utils.aoa_to_sheet([
-    ["올케어솔루션 나라장터 입찰일지", ...Array(12).fill("")],
+    [titleText, ...Array(12).fill("")],
     header,
     ...rows
   ]);
   ws["!merges"] = [{ s:{r:0,c:0}, e:{r:0,c:12} }];
   ws["!cols"] = header.map(()=>({wch:16}));
   XLSX.utils.book_append_sheet(wb, ws, "입찰일지");
-  const filename = `나라장터_입찰일지_${todayStr().replace(/-/g,"")}.xlsx`;
+  const companyPart = activeCo ? `${activeCo.name}_` : "";
+  const filename = `나라장터_입찰일지_${companyPart}${todayStr().replace(/-/g,"")}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
@@ -226,14 +284,20 @@ function activeFilterChips(){
     chips.push(`${label}: ${state.priceMin?Number(state.priceMin).toLocaleString():"0"}원 ~ ${state.priceMax?Number(state.priceMax).toLocaleString():"제한없음"}`);
   }
   if(state.excludeKeyword) chips.push("제외어: " + state.excludeKeyword);
-  chips.push("정렬: " + (state.sort==="open"?"개찰일순":"게시일순"));
+  chips.push("정렬: " + (state.sort==="open"?"개찰일순(임박순)":"게시일순(최신순)"));
   return chips;
 }
 
 /* ============================================================
    MAIN RENDER
+   렌더링을 4개 구역(프록시/회사탭/검색조건/결과표)으로 나눠서,
+   구역별로 필요한 부분만 다시 그린다. 특히 회사 탭 전환처럼
+   "조회 결과 표(대량 DOM)"는 그대로 두고 조건 카드만 바뀌면 되는
+   경우, 표 전체를 매번 다시 그리지 않아 체감 속도가 빨라진다.
    ============================================================ */
-function render(){
+let proxyContainer, companyContainer, filterContainer, resultContainer;
+
+function initApp(){
   const app = document.getElementById("app");
   app.innerHTML = "";
 
@@ -244,7 +308,23 @@ function render(){
     </div>
   `));
 
-  // A. 프록시 서버
+  proxyContainer = document.createElement("div");
+  companyContainer = document.createElement("div");
+  filterContainer = document.createElement("div");
+  resultContainer = document.createElement("div");
+  app.appendChild(proxyContainer);
+  app.appendChild(companyContainer);
+  app.appendChild(filterContainer);
+  app.appendChild(resultContainer);
+
+  renderProxySection();
+  renderCompanyTabsSection();
+  renderFilterSection();
+  renderResultSection();
+}
+
+function renderProxySection(){
+  proxyContainer.innerHTML = "";
   const proxyCard = el(`
     <div class="card">
       <h3><span class="tag">A</span>프록시 서버 연결</h3>
@@ -261,19 +341,109 @@ function render(){
     state.proxyBase = e.target.value.trim();
     localStorage.setItem("bidlog_proxyBase", state.proxyBase);
   };
-  app.appendChild(proxyCard);
+  proxyContainer.appendChild(proxyCard);
+}
 
-  // B. 검색조건
-  app.appendChild(renderFilterCard());
+function renderCompanyTabsSection(){
+  companyContainer.innerHTML = "";
+  companyContainer.appendChild(renderCompanyTabsCard());
+}
 
-  // C. 결과
-  app.appendChild(renderResultCard());
+function renderFilterSection(){
+  filterContainer.innerHTML = "";
+  filterContainer.appendChild(renderFilterCard());
+}
+
+function renderResultSection(){
+  resultContainer.innerHTML = "";
+  resultContainer.appendChild(renderResultCard());
+}
+
+// 검색조건/회사탭/프록시만 다시 그린다 (표는 그대로 유지 — 빠름)
+function renderControls(){
+  renderProxySection();
+  renderCompanyTabsSection();
+  renderFilterSection();
+}
+// 전체를 다시 그린다 (검색 실행 등 결과가 실제로 바뀔 때만 사용)
+function renderAll(){
+  renderControls();
+  renderResultSection();
+}
+
+function renderCompanyTabsCard(){
+  const card = el(`
+    <div class="card">
+      <h3><span class="tag">B</span>회사별 탭</h3>
+      <div class="note">탭을 만들면 지금 화면에 설정된 업종·지역·가격·정렬·제외키워드 조건이 그 회사 전용으로 저장됩니다. 탭을 누르면 저장된 조건을 바로 불러옵니다. 조건을 바꾼 뒤에는 "현재 조건을 이 탭에 저장" 버튼으로 갱신하세요. (날짜 범위는 탭에 저장되지 않고 매번 따로 선택합니다.)</div>
+      <div class="tabbar" id="companyTabs"></div>
+      <div class="row">
+        <button class="btn primary" id="btnSaveCompany" ${state.activeCompanyId ? "" : "disabled"}>현재 조건을 이 탭에 저장</button>
+      </div>
+    </div>
+  `);
+
+  const tabbar = card.querySelector("#companyTabs");
+  state.companies.forEach(co=>{
+    const tab = el(`
+      <span class="companytab ${co.id===state.activeCompanyId?"active":""}" data-id="${co.id}">
+        <span class="tabname">${co.name}</span>
+        <span class="del" data-id="${co.id}" title="탭 삭제">✕</span>
+      </span>
+    `);
+    tab.querySelector(".tabname").onclick = ()=>{
+      const co2 = state.companies.find(c=>c.id===co.id);
+      if(!co2) return;
+      state.activeCompanyId = co.id;
+      applyFilterSnapshot(co2.filters);
+      saveActiveCompanyId();
+      renderControls(); // 표는 그대로 두고 조건 부분만 다시 그림 (빠른 전환)
+    };
+    tab.querySelector(".del").onclick = (ev)=>{
+      ev.stopPropagation();
+      if(!confirm(`"${co.name}" 탭을 삭제할까요? (저장된 검색조건도 함께 삭제됩니다)`)) return;
+      state.companies = state.companies.filter(c=>c.id!==co.id);
+      saveCompanies();
+      if(state.activeCompanyId === co.id){
+        const next = state.companies[0];
+        state.activeCompanyId = next ? next.id : "";
+        if(next) applyFilterSnapshot(next.filters);
+        saveActiveCompanyId();
+      }
+      renderControls();
+    };
+    tabbar.appendChild(tab);
+  });
+
+  // 탭 줄 맨 끝에 "+" 탭 (새 회사 추가)
+  const addTab = el(`<span class="addtab" title="새 회사 탭 추가">＋</span>`);
+  addTab.onclick = ()=>{
+    const name = prompt("새 회사(탭) 이름을 입력하세요 (예: OO건설)");
+    if(!name || !name.trim()) return;
+    const id = "co_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
+    state.companies.push({ id, name: name.trim(), filters: getFilterSnapshot() });
+    state.activeCompanyId = id;
+    saveCompanies();
+    saveActiveCompanyId();
+    renderControls();
+  };
+  tabbar.appendChild(addTab);
+
+  card.querySelector("#btnSaveCompany").onclick = ()=>{
+    const co = state.companies.find(c=>c.id===state.activeCompanyId);
+    if(!co) return;
+    co.filters = getFilterSnapshot();
+    saveCompanies();
+    alert(`"${co.name}" 탭에 현재 검색조건을 저장했습니다.`);
+  };
+
+  return card;
 }
 
 function renderFilterCard(){
   const card = el(`
     <div class="card">
-      <h3><span class="tag">B</span>검색조건</h3>
+      <h3><span class="tag">C</span>검색조건</h3>
 
       <div class="row">
         <div class="field grow">
@@ -387,8 +557,8 @@ function renderFilterCard(){
         <div class="field">
           <label>정렬기준</label>
           <select id="sort">
-            <option value="reg" ${state.sort==="reg"?"selected":""}>게시일순</option>
-            <option value="open" ${state.sort==="open"?"selected":""}>개찰일순</option>
+            <option value="reg" ${state.sort==="reg"?"selected":""}>게시일순(최신순)</option>
+            <option value="open" ${state.sort==="open"?"selected":""}>개찰일순(임박순)</option>
           </select>
         </div>
         <div class="field grow">
@@ -409,37 +579,46 @@ function renderFilterCard(){
 
   card.querySelector("#btnTodayOpen").onclick = ()=>{
     state.dateType = "open";
+    state.sort = "open";
     state.startDate = todayStr();
     state.endDate = todayStr();
-    render();
+    renderControls();
     fetchBidlog();
   };
-  card.querySelector("#dateType").onchange = e=> { state.dateType = e.target.value; render(); };
-  card.querySelector("#startDate").onchange = e=> { state.startDate = e.target.value; render(); };
-  card.querySelector("#endDate").onchange = e=> { state.endDate = e.target.value; render(); };
+  card.querySelector("#dateType").onchange = e=>{
+    state.dateType = e.target.value;
+    // 날짜기준을 개찰일로 바꾸면 정렬도 자동으로 "개찰일순(임박순)"으로 맞춰준다.
+    // 게시일 기준으로 바꾸면 정렬도 게시일순(최신순)으로. 사용자가 정렬기준을
+    // 다시 직접 바꾸면 그 선택이 그대로 유지된다.
+    if(state.dateType === "open") state.sort = "open";
+    else if(state.dateType === "reg") state.sort = "reg";
+    renderControls();
+  };
+  card.querySelector("#startDate").onchange = e=> { state.startDate = e.target.value; renderControls(); };
+  card.querySelector("#endDate").onchange = e=> { state.endDate = e.target.value; renderControls(); };
   card.querySelectorAll("[data-range]").forEach(btn=>{
     btn.onclick = ()=>{
       const n = parseInt(btn.dataset.range,10);
       state.endDate = todayStr();
       state.startDate = n===0 ? todayStr() : addDays(new Date(), -n);
-      render();
+      renderControls();
     };
   });
   card.querySelectorAll("[data-ind]").forEach(sel=>{
-    sel.onchange = e=>{ state.industries[parseInt(sel.dataset.ind,10)] = e.target.value; render(); };
+    sel.onchange = e=>{ state.industries[parseInt(sel.dataset.ind,10)] = e.target.value; renderControls(); };
   });
   card.querySelectorAll("[data-reg]").forEach(sel=>{
-    sel.onchange = e=>{ state.regions[parseInt(sel.dataset.reg,10)] = e.target.value; render(); };
+    sel.onchange = e=>{ state.regions[parseInt(sel.dataset.reg,10)] = e.target.value; renderControls(); };
   });
-  card.querySelector("#excludeInHouse").onchange = e=> { state.excludeInHouse = e.target.checked; render(); };
-  card.querySelector("#strictIndustry").onchange = e=> { state.strictIndustry = e.target.checked; render(); };
-  card.querySelector("#priceType").onchange = e=> { state.priceType = e.target.value; render(); };
+  card.querySelector("#excludeInHouse").onchange = e=> { state.excludeInHouse = e.target.checked; renderControls(); };
+  card.querySelector("#strictIndustry").onchange = e=> { state.strictIndustry = e.target.checked; renderControls(); };
+  card.querySelector("#priceType").onchange = e=> { state.priceType = e.target.value; renderControls(); };
   card.querySelector("#priceMin").oninput = e=> state.priceMin = e.target.value;
   card.querySelector("#priceMax").oninput = e=> state.priceMax = e.target.value;
   card.querySelectorAll("[data-price]").forEach(btn=>{
-    btn.onclick = ()=>{ state.priceMin = btn.dataset.price; render(); };
+    btn.onclick = ()=>{ state.priceMin = btn.dataset.price; renderControls(); };
   });
-  card.querySelector("#sort").onchange = e=> { state.sort = e.target.value; render(); };
+  card.querySelector("#sort").onchange = e=> { state.sort = e.target.value; renderControls(); };
   card.querySelector("#excludeKeyword").oninput = e=> state.excludeKeyword = e.target.value;
   card.querySelector("#btnSearch").onclick = fetchBidlog;
   card.querySelector("#btnExcel").onclick = exportExcel;
@@ -461,10 +640,11 @@ function regionOptionsHtml(selected){
 }
 
 function renderResultCard(){
+  const activeCo = state.companies.find(c => c.id === state.activeCompanyId);
   const card = el(`
     <div class="card">
       <div class="resulthead">
-        <h3 style="margin:0;"><span class="tag">C</span>조회 결과</h3>
+        <h3 style="margin:0;"><span class="tag">D</span>조회 결과${activeCo ? ` <span style="font-weight:400;color:var(--ink-soft);">— ${activeCo.name}</span>` : ""}</h3>
         <span class="count">${state.items.length}건</span>
       </div>
       <div class="tablewrap">
@@ -507,7 +687,7 @@ function renderResultCard(){
       `);
       tr.querySelector(".rawtoggle").onclick = ()=>{
         state.expandedRow = state.expandedRow === i ? null : i;
-        render();
+        renderResultSection(); // 표만 다시 그림
       };
       tbody.appendChild(tr);
       if(state.expandedRow === i){
@@ -522,7 +702,7 @@ function renderResultCard(){
 /* ============================================================
    INIT
    ============================================================ */
-render();
+initApp();
 </script>
 </body>
 </html>

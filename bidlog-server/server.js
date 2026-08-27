@@ -97,7 +97,7 @@ app.get("/health", (req, res) => {
  *   priceMin, priceMax   원 단위 숫자
  *   excludeKeyword  콤마 구분 제외 키워드 (공고명 기준)
  *   sort        reg | open  [기본 reg, 최신순]
- *   numOfRows   결과 개수 상한 [기본 300]
+ *   numOfRows   결과 개수 상한 [기본 2000]
  */
 app.get("/api/bidlog", async (req, res) => {
   try {
@@ -114,7 +114,7 @@ app.get("/api/bidlog", async (req, res) => {
       priceMax = "",
       excludeKeyword = "",
       sort = "reg",
-      numOfRows = "300",
+      numOfRows = "2000",
     } = req.query;
 
     if (!startDate || !endDate) {
@@ -145,28 +145,47 @@ app.get("/api/bidlog", async (req, res) => {
 
     let items = [];
     let lastError = null;
+    const MAX_PAGES_PER_CHUNK = 10; // 15일 구간당 최대 999*10=9990건까지 안전하게 페이징
 
     for (const [cBegin, cEnd] of chunks) {
-      const params = {
-        type: "json",
-        numOfRows: "999",
-        pageNo: "1",
-        inqryDiv,
-        inqryBgnDt: fmt(cBegin),
-        inqryEndDt: fmt(cEnd),
-      };
-      const url = buildUrl(
-        "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoCnstwkPPSSrch",
-        params
-      );
-      try {
-        const upstream = await fetch(url);
-        const text = await upstream.text();
-        const parsed = parseNaraResponse(text);
-        if (parsed.ok) items = items.concat(parsed.items);
-        else lastError = parsed.message;
-      } catch (e) {
-        lastError = e.message;
+      let pageNo = 1;
+      let totalCount = 0;
+      while (true) {
+        const params = {
+          type: "json",
+          numOfRows: "999",
+          pageNo: String(pageNo),
+          inqryDiv,
+          inqryBgnDt: fmt(cBegin),
+          inqryEndDt: fmt(cEnd),
+        };
+        const url = buildUrl(
+          "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoCnstwkPPSSrch",
+          params
+        );
+        try {
+          const upstream = await fetch(url);
+          const text = await upstream.text();
+          const parsed = parseNaraResponse(text);
+          if (parsed.ok) {
+            items = items.concat(parsed.items);
+            totalCount = parsed.totalCount || items.length;
+          } else {
+            lastError = parsed.message;
+            break;
+          }
+        } catch (e) {
+          lastError = e.message;
+          break;
+        }
+        // 이번 15일 구간에서 아직 못 받아온 건이 남아있고, 안전 상한 안이면 다음 페이지도 요청.
+        // (예: 전국+전업종처럼 필터가 넓어 15일 안에 999건을 넘는 경우를 대비)
+        const fetchedSoFarInThisChunk = pageNo * 999;
+        if (totalCount > fetchedSoFarInThisChunk && pageNo < MAX_PAGES_PER_CHUNK) {
+          pageNo++;
+        } else {
+          break;
+        }
       }
     }
 
@@ -252,8 +271,12 @@ app.get("/api/bidlog", async (req, res) => {
       });
     }
 
+    // 정렬: 게시일순은 최신 게시글이 위로(내림차순), 개찰일순은 개찰일시가
+    // 대부분 "미래" 날짜이므로 오늘과 가장 가까운(임박한) 공고가 위로 오도록
+    // 오름차순으로 정렬한다. (실무상 임박한 개찰부터 챙겨야 하기 때문)
     const sortField = sort === "open" ? "개찰일시" : "게시일";
-    mapped.sort((a, b) => (b[sortField] || "").localeCompare(a[sortField] || ""));
+    const sortDir = sort === "open" ? 1 : -1;
+    mapped.sort((a, b) => sortDir * (a[sortField] || "").localeCompare(b[sortField] || ""));
 
     const seen = new Set();
     mapped = mapped.filter(it => {
@@ -278,7 +301,7 @@ app.get("/api/bidlog", async (req, res) => {
       );
     }
 
-    mapped = mapped.slice(0, parseInt(numOfRows, 10) || 300);
+    mapped = mapped.slice(0, parseInt(numOfRows, 10) || 2000);
     mapped = mapped.map(({ _업종정규화, ...rest }) => rest); // 내부용 필드 제거
 
     res.json({ ok: true, count: mapped.length, items: mapped });

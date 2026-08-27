@@ -69,6 +69,9 @@
   td.num{text-align:right;font-family:var(--mono);}
   .tablewrap{overflow-x:auto;border:1px solid var(--paper-line);max-height:560px;overflow-y:auto;}
   .rawtoggle{font-family:var(--mono);font-size:10px;color:var(--navy);cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;}
+  .badge-cancel{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--risk-high);border-radius:4px;padding:1px 6px;margin-right:6px;vertical-align:middle;}
+  tr.cancelled-row td{text-decoration:line-through;color:var(--ink-soft);opacity:0.7;}
+  tr.cancelled-row td:has(.badge-cancel){text-decoration:none;}
   .rawrow td{background:#101418 !important;color:#B7D0EA;font-family:var(--mono);font-size:11px;white-space:pre-wrap;padding:12px;}
 
   @media (max-width:700px){
@@ -179,18 +182,19 @@ async function fetchBidlog(){
    ============================================================ */
 function exportExcel(){
   if(state.items.length === 0){ alert("내보낼 데이터가 없습니다. 먼저 조회하세요."); return; }
-  const header = ["번호","게시일","개찰일시","공고명","공고번호","발주기관","추정가격","기초금액","참가마감일시","투찰마감일시","업종제한","지역제한"];
+  const header = ["번호","게시일","개찰일시","공고명","공고번호","발주기관","추정가격","기초금액","참가마감일시","투찰마감일시","업종제한","지역제한","공고상태"];
   const rows = state.items.map((it, i) => [
     i+1, it.게시일, it.개찰일시, it.공고명, it.공고번호, it.발주기관,
-    it.추정가격 ?? "", it.기초금액 ?? "", it.참가마감일시, it.투찰마감일시, it.업종제한, it.지역제한
+    it.추정가격 ?? "", it.기초금액 ?? "", it.참가마감일시, it.투찰마감일시, it.업종제한, it.지역제한,
+    it.취소여부 ? "취소" : "정상"
   ]);
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
-    ["올케어솔루션 나라장터 입찰일지", ...Array(11).fill("")],
+    ["올케어솔루션 나라장터 입찰일지", ...Array(12).fill("")],
     header,
     ...rows
   ]);
-  ws["!merges"] = [{ s:{r:0,c:0}, e:{r:0,c:11} }];
+  ws["!merges"] = [{ s:{r:0,c:0}, e:{r:0,c:12} }];
   ws["!cols"] = header.map(()=>({wch:16}));
   XLSX.utils.book_append_sheet(wb, ws, "입찰일지");
   const filename = `나라장터_입찰일지_${todayStr().replace(/-/g,"")}.xlsx`;
@@ -474,12 +478,13 @@ function renderResultCard(){
     tbody.appendChild(el(`<tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">조회된 데이터가 없습니다. 위에서 검색조건을 설정하고 "나라장터 조회"를 눌러주세요.</td></tr>`));
   } else {
     state.items.forEach((it, i)=>{
+      const isCancelled = !!it.취소여부;
       const tr = el(`
-        <tr>
+        <tr class="${isCancelled ? "cancelled-row" : ""}">
           <td>${i+1}</td>
           <td style="white-space:normal;">${it.게시일 || "—"}</td>
           <td style="white-space:normal;">${it.개찰일시 || "—"}</td>
-          <td style="white-space:normal;max-width:260px;">${it.공고명}</td>
+          <td style="white-space:normal;max-width:260px;">${isCancelled ? '<span class="badge-cancel">취소</span>' : ""}${it.공고명}</td>
           <td>${it.공고번호}</td>
           <td style="white-space:normal;">${it.발주기관}</td>
           <td class="num">${fmtMoney(it.추정가격)}</td>

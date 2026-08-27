@@ -188,6 +188,11 @@ app.get("/api/bidlog", async (req, res) => {
         개찰일시: it.opengDt || it.opengDate || "",
         공고명: it.bidNtceNm || "",
         공고번호: (it.bidNtceNo || "") + (it.bidNtceOrd ? "-" + it.bidNtceOrd : ""),
+        // ntceKindNm(공고종류명)이 "취소공고"이면 실제로 취소된 건이다.
+        // (raw 데이터로 검증됨: 취소된 차수는 ntceKindNm="취소공고", 그 외에는
+        //  "일반공고"/"정정공고"/"재공고" 등의 값을 갖는다.)
+        공고종류: it.ntceKindNm || "",
+        취소여부: it.ntceKindNm === "취소공고",
         발주기관: it.ntceInsttNm || it.dminsttNm || "",
         추정가격: it.presmptPrce ? Number(it.presmptPrce) : null,
         기초금액: it.bdgtAmt ? Number(it.bdgtAmt) : null,

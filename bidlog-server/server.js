@@ -262,6 +262,22 @@ app.get("/api/bidlog", async (req, res) => {
       return true;
     });
 
+    // 같은 bidNtceNo(공고번호, 차수 제외) 안에 "취소공고" 차수가 하나라도 있으면
+    // 그 공고번호에 속한 모든 차수(원공고 포함)를 전부 취소된 것으로 표시한다.
+    // (나라장터는 취소를 별도 차수의 "취소공고"로 추가 게시하는 방식이라,
+    //  원공고 자체의 ntceKindNm은 "취소공고"로 안 바뀌기 때문)
+    // numOfRows로 자르기 전에 계산해야 취소차수가 잘려나가도 원공고에 반영된다.
+    const cancelledBaseNos = new Set(
+      mapped.filter(it => it.취소여부).map(it => it.raw?.bidNtceNo).filter(Boolean)
+    );
+    if (cancelledBaseNos.size) {
+      mapped = mapped.map(it =>
+        !it.취소여부 && cancelledBaseNos.has(it.raw?.bidNtceNo)
+          ? { ...it, 취소여부: true }
+          : it
+      );
+    }
+
     mapped = mapped.slice(0, parseInt(numOfRows, 10) || 300);
     mapped = mapped.map(({ _업종정규화, ...rest }) => rest); // 내부용 필드 제거
 

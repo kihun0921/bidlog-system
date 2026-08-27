@@ -118,8 +118,14 @@ const REGION_OPTIONS = [
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
 
+// 기본 프록시 서버 주소. 서버 배포 구조가 바뀌면 이 한 줄만 수정하면 된다.
+const DEFAULT_PROXY_BASE = "http://180.210.78.99/bidlog-api";
+// 사용자가 화면에서 직접 바꾼 값은 브라우저(localStorage)에 저장해두고,
+// 다음에 파일을 새로 열었을 때도(파일 자체가 업데이트되어도) 그 값을 우선 사용한다.
+const savedProxyBase = localStorage.getItem("bidlog_proxyBase");
+
 const state = {
-  proxyBase: "http://localhost:8788",
+  proxyBase: savedProxyBase || DEFAULT_PROXY_BASE,
   dateType: "open",
   startDate: todayStr(),
   endDate: todayStr(),
@@ -251,7 +257,10 @@ function render(){
       </div>
     </div>
   `);
-  proxyCard.querySelector("#proxyInput").oninput = e=> state.proxyBase = e.target.value.trim();
+  proxyCard.querySelector("#proxyInput").oninput = e=>{
+    state.proxyBase = e.target.value.trim();
+    localStorage.setItem("bidlog_proxyBase", state.proxyBase);
+  };
   app.appendChild(proxyCard);
 
   // B. 검색조건
@@ -484,14 +493,14 @@ function renderResultCard(){
           <td>${i+1}</td>
           <td style="white-space:normal;">${it.게시일 || "—"}</td>
           <td style="white-space:normal;">${it.개찰일시 || "—"}</td>
-          <td style="white-space:normal;max-width:260px;">${isCancelled ? '<span class="badge-cancel">취소</span>' : ""}${it.공고명}</td>
+          <td style="white-space:normal;min-width:320px;max-width:480px;">${isCancelled ? '<span class="badge-cancel">취소</span>' : ""}${it.공고명}</td>
           <td>${it.공고번호}</td>
           <td style="white-space:normal;">${it.발주기관}</td>
           <td class="num">${fmtMoney(it.추정가격)}</td>
           <td class="num">${fmtMoney(it.기초금액)}</td>
           <td style="white-space:normal;">${it.참가마감일시 || "—"}</td>
           <td style="white-space:normal;">${it.투찰마감일시 || "—"}</td>
-          <td>${it.업종제한 === "정보없음" ? '<span style="color:var(--amber-deep);">정보없음</span>' : it.업종제한}</td>
+          <td style="white-space:normal;max-width:140px;">${it.업종제한 === "정보없음" ? '<span style="color:var(--amber-deep);">정보없음</span>' : it.업종제한}</td>
           <td>${it.지역제한 || "—"}</td>
           <td><button class="rawtoggle" data-idx="${i}">보기</button></td>
         </tr>

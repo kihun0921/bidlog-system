@@ -369,6 +369,9 @@ function exportExcel(){
     : "올케어솔루션 나라장터 입찰일지";
 
   const wb = XLSX.utils.book_new();
+  const titleText = activeCo
+    ? `올케어솔루션 나라장터 입찰일지 — ${activeCo.name}`
+    : "올케어솔루션 나라장터 입찰일지";
   const ws = XLSX.utils.aoa_to_sheet([
     [titleText, ...Array(15).fill("")],
     header,

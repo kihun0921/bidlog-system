@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>입찰일지 자동화 시스템</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   :root{
     --navy:#1F3A5F;
@@ -59,6 +59,18 @@
   .chip{font-family:var(--mono);font-size:11px;background:var(--navy-deep);color:#EAF0F6;padding:5px 10px;}
   .chip.empty{background:transparent;color:var(--ink-soft);border:1px dashed #D3D7D2;}
 
+  .tabbar{display:flex;flex-wrap:wrap;gap:0;border-bottom:2px solid var(--navy);margin-bottom:14px;}
+  .companytab{display:inline-flex;align-items:center;gap:8px;background:var(--paper);border:1px solid var(--paper-line);border-bottom:none;padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-soft);position:relative;top:2px;white-space:nowrap;}
+  .companytab:hover:not(.active){background:#EEF1EE;color:var(--ink);}
+  .companytab.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .companytab.dragging{opacity:0.4;}
+  .companytab.drag-over{box-shadow:inset 3px 0 0 var(--amber-deep);}
+  .companytab .del{font-family:var(--mono);font-size:11px;opacity:0;transition:opacity .12s;cursor:pointer;padding:1px 5px;border-radius:50%;color:inherit;}
+  .companytab:hover .del{opacity:.55;}
+  .companytab .del:hover{opacity:1 !important;background:var(--risk-high);color:#fff;}
+  .addtab{display:inline-flex;align-items:center;justify-content:center;padding:10px 18px;cursor:pointer;font-size:15px;font-weight:800;color:var(--ink-soft);background:transparent;border:1px dashed #D3D7D2;border-bottom:none;position:relative;top:2px;}
+  .addtab:hover{background:#EEF1EE;color:var(--navy);border-color:var(--navy);}
+
   .resulthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;}
   .resulthead .count{font-family:var(--mono);font-size:12px;color:var(--ink-soft);}
 
@@ -69,10 +81,34 @@
   td.num{text-align:right;font-family:var(--mono);}
   .tablewrap{overflow-x:auto;border:1px solid var(--paper-line);max-height:560px;overflow-y:auto;}
   .rawtoggle{font-family:var(--mono);font-size:10px;color:var(--navy);cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;}
+  .biddetail{padding:16px 4px;}
+  .biddetail-head{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;color:var(--navy-deep);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--paper-line);}
+  .biddetail-section{margin-bottom:20px;}
+  .biddetail-sectitle{font-size:12px;font-weight:800;color:#fff;background:var(--navy);display:inline-block;padding:3px 10px;border-radius:3px;margin-bottom:8px;}
+  table.detailtable{width:100%;border-collapse:collapse;font-size:13px;background:#fff;}
+  table.detailtable th{width:130px;text-align:left;background:#F1F3EF;color:var(--ink-soft);font-weight:700;padding:8px 12px;border:1px solid var(--paper-line);white-space:nowrap;}
+  table.detailtable td{padding:8px 12px;border:1px solid var(--paper-line);}
+  .detail-note{font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;}
+  .detail-empty{font-size:12px;color:var(--ink-soft);background:#F1F3EF;padding:10px 12px;border-radius:4px;line-height:1.6;}
+  .attlink{margin-bottom:4px;}
+  .attlink a{font-size:13px;color:var(--navy);text-decoration:underline;}
+  .attlink a:hover{color:var(--amber-deep);}
+  .bidname-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;color:var(--ink);}
+  .bidname-link:hover{color:var(--navy);}
   .badge-cancel{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--risk-high);border-radius:4px;padding:1px 6px;margin-right:6px;vertical-align:middle;}
   tr.cancelled-row td{text-decoration:line-through;color:var(--ink-soft);opacity:0.7;}
   tr.cancelled-row td:has(.badge-cancel){text-decoration:none;}
-  .rawrow td{background:#101418 !important;color:#B7D0EA;font-family:var(--mono);font-size:11px;white-space:pre-wrap;padding:12px;}
+  .revtoggle{display:inline-block;font-size:11px;font-weight:700;color:var(--navy);background:#E8ECE6;border:1px solid #C9D0C6;border-radius:4px;padding:1px 7px;margin:4px 6px 0 0;cursor:pointer;}
+  .revtoggle:hover{background:#DCE3D9;}
+  .revrow td{background:#F6F2E9;border-top:1px dashed #D8CDA8;padding:10px 14px;}
+  .revlist{display:flex;flex-direction:column;gap:6px;}
+  .revitem{display:flex;align-items:center;gap:8px;font-size:12px;}
+  .revitem button{font-family:var(--mono);font-size:11px;color:var(--navy);background:#fff;border:1px solid #C9D0C6;border-radius:4px;padding:3px 8px;cursor:pointer;}
+  .revitem button:hover{background:var(--navy);color:#fff;}
+  .revitem .revcur{font-family:var(--mono);font-size:11px;color:#fff;background:var(--ink-soft);border-radius:4px;padding:3px 8px;}
+  tr.row-flash{animation:rowflash 1.4s ease;}
+  @keyframes rowflash{0%{background:#FFF3C4;}100%{background:transparent;}}
+  .rawrow td{background:#FBFBF9 !important;padding:0;}
 
   @media (max-width:700px){
     .row{flex-direction:column;align-items:stretch;}
@@ -107,7 +143,7 @@ const INDUSTRY_OPTIONS = [
   { v:"도장습식방수석공사", l:"도장·습식·방수·석공사업" },
 ];
 const REGION_OPTIONS = [
-  "", "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
+  "", "전국", "서울특별시", "부산광역시", "대구광역시", "인천광역시", "광주광역시",
   "대전광역시", "울산광역시", "세종특별자치시", "경기도", "강원특별자치도",
   "충청북도", "충청남도", "전북특별자치도", "전라남도", "경상북도", "경상남도", "제주특별자치도",
 ];
@@ -133,22 +169,70 @@ const state = {
   regions: ["", "", ""],
   excludeInHouse: false,
   strictIndustry: false,
+  includeD2B: false, // 국방조달본부(D2B) 결과도 같이 가져올지 여부
   priceType: "presmptPrce",
   priceMin: "",
   priceMax: "",
-  sort: "reg",
+  sort: "open", // 기본 날짜기준(dateType)이 "개찰일"이므로 정렬 기본값도 맞춰둔다
   excludeKeyword: "",
+  includeKeyword: "",
   loading: false,
   error: "",
   items: [],
   expandedRow: null,
+  expandedRevision: null, // 정정내역 드롭다운이 펼쳐진 행 인덱스
+  companies: [],       // 회사별 탭. 각 항목: {id, name, filters:{...}}
+  activeCompanyId: "", // 현재 선택된 탭. ""이면 임시(어느 탭에도 속하지 않은) 조건 사용중.
 };
+
+/* ============================================================
+   회사 탭 — 검색조건을 회사별로 저장/불러오기 (localStorage)
+   날짜 범위(dateType/startDate/endDate)는 매번 새로 고르는 값이라
+   탭 저장 대상에서 제외하고, 업종/지역/가격 등만 저장한다.
+   정렬기준(sort)도 날짜기준(dateType)과 짝을 이루는 그때그때 옵션이라
+   탭 저장 대상에서 제외한다 (탭 전환 때마다 옛 정렬값으로 덮어써지는 걸 방지).
+   ============================================================ */
+const COMPANY_FILTER_KEYS = [
+  "industries", "regions", "excludeInHouse", "strictIndustry",
+  "priceType", "priceMin", "priceMax", "excludeKeyword", "includeKeyword", "includeD2B",
+];
+function getFilterSnapshot(){
+  const snap = {};
+  COMPANY_FILTER_KEYS.forEach(k=>{
+    const v = state[k];
+    snap[k] = Array.isArray(v) ? [...v] : v;
+  });
+  return snap;
+}
+function applyFilterSnapshot(snap){
+  if(!snap) return;
+  COMPANY_FILTER_KEYS.forEach(k=>{
+    if(snap[k] === undefined) return;
+    state[k] = Array.isArray(snap[k]) ? [...snap[k]] : snap[k];
+  });
+}
+function saveCompanies(){ localStorage.setItem("bidlog_companies", JSON.stringify(state.companies)); }
+function saveActiveCompanyId(){ localStorage.setItem("bidlog_activeCompanyId", state.activeCompanyId || ""); }
+
+(function loadCompaniesFromStorage(){
+  try{
+    state.companies = JSON.parse(localStorage.getItem("bidlog_companies") || "[]");
+  }catch(e){
+    state.companies = [];
+  }
+  const savedActiveId = localStorage.getItem("bidlog_activeCompanyId") || "";
+  const active = state.companies.find(c => c.id === savedActiveId);
+  if(active){
+    state.activeCompanyId = active.id;
+    applyFilterSnapshot(active.filters);
+  }
+})();
 
 /* ============================================================
    API
    ============================================================ */
 async function fetchBidlog(){
-  state.loading = true; state.error = ""; render();
+  state.loading = true; state.error = ""; renderAll();
   try{
     const url = new URL(state.proxyBase.replace(/\/$/,"") + "/api/bidlog");
     url.searchParams.set("dateType", state.dateType);
@@ -164,6 +248,7 @@ async function fetchBidlog(){
     if(state.priceMin) url.searchParams.set("priceMin", state.priceMin);
     if(state.priceMax) url.searchParams.set("priceMax", state.priceMax);
     if(state.excludeKeyword) url.searchParams.set("excludeKeyword", state.excludeKeyword);
+    if(state.includeKeyword) url.searchParams.set("includeKeyword", state.includeKeyword);
     url.searchParams.set("sort", state.sort);
 
     const res = await fetch(url.toString());
@@ -173,37 +258,151 @@ async function fetchBidlog(){
       state.items = [];
     } else {
       state.items = data.items;
-      if(state.items.length === 0) state.error = "조건에 맞는 공고가 없습니다. 기간이나 필터를 조정해 보세요.";
+    }
+
+    // 국방조달본부(D2B) 포함 옵션이 켜져 있으면 같은 조건으로 추가 조회 후 합친다.
+    // (D2B는 업종/지역/가격 필터가 없어 날짜범위·포함/제외키워드만 공통 적용됨)
+    if(state.includeD2B){
+      try{
+        const d2bUrl = new URL(state.proxyBase.replace(/\/$/,"") + "/api/d2b");
+        d2bUrl.searchParams.set("dateType", state.dateType === "open" ? "open" : "reg");
+        d2bUrl.searchParams.set("startDate", state.startDate);
+        d2bUrl.searchParams.set("endDate", state.endDate);
+        if(state.excludeKeyword) d2bUrl.searchParams.set("excludeKeyword", state.excludeKeyword);
+        if(state.includeKeyword) d2bUrl.searchParams.set("includeKeyword", state.includeKeyword);
+        d2bUrl.searchParams.set("sort", state.sort);
+
+        const d2bRes = await fetch(d2bUrl.toString());
+        const d2bData = await d2bRes.json();
+        if(d2bData.ok){
+          state.items = [...state.items, ...d2bData.items];
+        } else {
+          state.error = (state.error ? state.error + " / " : "") + "D2B 오류: " + (d2bData.error || "알 수 없는 오류");
+        }
+      }catch(e){
+        state.error = (state.error ? state.error + " / " : "") + "D2B 프록시 연결 실패";
+      }
+      // 소스별로 각각 정렬되어 온 두 목록을 합쳤으니, 선택한 정렬기준으로 다시 한 번 정렬
+      const sortField = state.sort === "open" ? "개찰일시" : "게시일";
+      const sortDir = state.sort === "open" ? 1 : -1;
+      state.items.sort((a,b)=> sortDir * (a[sortField]||"").localeCompare(b[sortField]||""));
+    }
+
+    if(state.items.length === 0 && !state.error){
+      state.error = "조건에 맞는 공고가 없습니다. 기간이나 필터를 조정해 보세요.";
     }
   }catch(e){
     state.error = `프록시 서버(${state.proxyBase})에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.`;
     state.items = [];
   }
   state.loading = false;
-  render();
+  renderAll();
 }
 
 /* ============================================================
    EXCEL EXPORT
    ============================================================ */
+// 원본 견본 파일(서현종합건설 양식)에서 뽑아낸 서식값들.
+// 컬럼폭은 원본의 1/256-문자 단위 값을 그대로 문자폭(wch)으로 환산해서 맞췄다.
+// "출처"(나라장터/D2B 등) 컬럼은 원본 양식에는 없던 것이라, 기존 16개 컬럼 구조를
+// 그대로 보존하기 위해 맨 뒤에 추가했다.
+const EXCEL_COL_WIDTHS = [4.6, 9.3, 9.4, 46.3, 12.9, 21.1, 12.4, 13.3, 10.8, 10.1, 11.4, 11.4, 6.6, 7.0, 12.8, 8.1, 14.0];
+const EXCEL_COL_ALIGN  = ["center","center","center","left","center","left","right","right","right","right","center","center","left","center","right","center","center"];
+const EXCEL_MONEY_COLS = [6, 7, 8, 9]; // 추정가격/기초금액/A값/순공사원가 (숫자 서식 적용)
+
+const THIN_BLACK = { style: "thin", color: { rgb: "000000" } };
+const HAIR_BLACK = { style: "hair", color: { rgb: "000000" } };
+
+function styleTitle(){
+  return {
+    font: { name: "맑은 고딕", sz: 15, bold: true, color: { rgb: "000000" } },
+    alignment: { horizontal: "left", vertical: "center", indent: 1, wrapText: true },
+    border: { top: HAIR_BLACK, bottom: HAIR_BLACK },
+  };
+}
+function styleHeader(){
+  return {
+    font: { name: "맑은 고딕", sz: 11, bold: true, color: { rgb: "000000" } },
+    fill: { patternType: "solid", fgColor: { rgb: "99CCFF" } },
+    alignment: { horizontal: "center", vertical: "center", wrapText: true },
+    border: { top: THIN_BLACK, bottom: THIN_BLACK, left: THIN_BLACK, right: THIN_BLACK },
+  };
+}
+function styleData(colIdx){
+  return {
+    font: { name: "Arial", sz: 8, color: { rgb: "000000" } },
+    alignment: { horizontal: EXCEL_COL_ALIGN[colIdx] || "left", vertical: "center" },
+    border: { top: THIN_BLACK, bottom: THIN_BLACK, left: THIN_BLACK, right: THIN_BLACK },
+    numFmt: EXCEL_MONEY_COLS.includes(colIdx) ? "#,##0" : undefined,
+  };
+}
+
 function exportExcel(){
   if(state.items.length === 0){ alert("내보낼 데이터가 없습니다. 먼저 조회하세요."); return; }
-  const header = ["번호","게시일","개찰일시","공고명","공고번호","발주기관","추정가격","기초금액","참가마감일시","투찰마감일시","업종제한","지역제한","공고상태"];
+  const activeCo = state.companies.find(c => c.id === state.activeCompanyId);
+  // 기존에 회사별로 관리하시던 엑셀 양식과 동일한 컬럼 구성.
+  // A값/순공사원가는 이 API 응답에 없는 값이라 빈칸으로, 투찰금액/사정율은
+  // 실제 입찰 이후 직접 기입하시는 값이라 마찬가지로 빈칸으로 남겨둔다.
+  const header = ["번호","입력일","개찰일","공고명","공고번호","발주기관","추정가격","기초금액","A값","순공사원가","참가마감","투찰마감","업종","지역","투찰금액","사정율","출처"];
   const rows = state.items.map((it, i) => [
-    i+1, it.게시일, it.개찰일시, it.공고명, it.공고번호, it.발주기관,
-    it.추정가격 ?? "", it.기초금액 ?? "", it.참가마감일시, it.투찰마감일시, it.업종제한, it.지역제한,
-    it.취소여부 ? "취소" : "정상"
+    i+1,
+    it.게시일,
+    it.개찰일시,
+    (it.취소여부 ? "[취소] " : "") + it.공고명,
+    it.공고번호,
+    it.발주기관,
+    it.추정가격 ?? "",
+    it.기초금액 ?? "",
+    "", // A값 (정보 없음)
+    "", // 순공사원가 (정보 없음)
+    it.참가마감일시,
+    it.투찰마감일시,
+    it.업종제한,
+    it.지역제한,
+    "", // 투찰금액 (입찰 후 직접 기입)
+    "", // 사정율 (입찰 후 직접 기입)
+    it.출처 || "나라장터(G2B)",
   ]);
+
+  const titleText = activeCo
+    ? `${activeCo.name} 입찰일지`
+    : "올케어솔루션 나라장터 입찰일지";
+
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
-    ["올케어솔루션 나라장터 입찰일지", ...Array(12).fill("")],
+    [titleText, ...Array(15).fill("")],
     header,
-    ...rows
+    ...rows,
   ]);
-  ws["!merges"] = [{ s:{r:0,c:0}, e:{r:0,c:12} }];
-  ws["!cols"] = header.map(()=>({wch:16}));
+
+  const nCols = header.length;
+  ws["!merges"] = [{ s:{r:0,c:0}, e:{r:0,c:nCols-1} }];
+  ws["!cols"] = EXCEL_COL_WIDTHS.map(w=>({ wch: w }));
+  ws["!rows"] = [{ hpt: 27 }, { hpt: 19 }, ...rows.map(()=>({ hpt: 14 }))];
+
+  // 제목행 스타일
+  for(let c=0; c<nCols; c++){
+    const addr = XLSX.utils.encode_cell({ r:0, c });
+    if(!ws[addr]) ws[addr] = { t:"s", v:"" };
+    ws[addr].s = styleTitle();
+  }
+  // 헤더행 스타일
+  for(let c=0; c<nCols; c++){
+    const addr = XLSX.utils.encode_cell({ r:1, c });
+    ws[addr].s = styleHeader();
+  }
+  // 데이터행 스타일 (번호를 매기며 자동으로 계속 붙는 구조 — rows.length만큼 그대로 적용됨)
+  for(let r=0; r<rows.length; r++){
+    for(let c=0; c<nCols; c++){
+      const addr = XLSX.utils.encode_cell({ r: r+2, c });
+      if(!ws[addr]) ws[addr] = { t:"s", v:"" };
+      ws[addr].s = styleData(c);
+    }
+  }
+
   XLSX.utils.book_append_sheet(wb, ws, "입찰일지");
-  const filename = `나라장터_입찰일지_${todayStr().replace(/-/g,"")}.xlsx`;
+  const companyPart = activeCo ? `${activeCo.name}_` : "";
+  const filename = `나라장터_입찰일지_${companyPart}${todayStr().replace(/-/g,"")}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 
@@ -212,6 +411,106 @@ function exportExcel(){
    ============================================================ */
 function el(html){ const t=document.createElement("template"); t.innerHTML=html.trim(); return t.content.firstElementChild; }
 function fmtMoney(n){ return n==null ? "—" : Number(n).toLocaleString()+"원"; }
+
+/* ============================================================
+   공고 상세보기 (raw JSON을 그대로 보여주지 않고, 실제 필드값으로
+   기본정보 → 일시정보 → 첨부파일/원문링크 순으로 정리해서 보여준다.
+   ⚠️ 이 API(getBidPblancListInfoCnstwkPPSSrch)는 목록/요약 정보만
+   제공하고, 공사입찰설명서(hwpx/pdf) "본문 텍스트" 자체는 포함하지
+   않는다. 그래서 "공고문 내용"은 첨부파일 다운로드 링크와 나라장터
+   원문 페이지 바로가기로 대신한다.
+   ============================================================ */
+function detailRow(label, value){
+  if(value === undefined || value === null || value === "") return "";
+  return `<tr><th>${label}</th><td>${value}</td></tr>`;
+}
+
+function buildAttachmentLinks(raw){
+  const links = [];
+  for(let i=1; i<=10; i++){
+    const url = raw[`ntceSpecDocUrl${i}`];
+    const name = raw[`ntceSpecFileNm${i}`];
+    if(url) links.push({ name: name || `첨부파일 ${i}`, url });
+  }
+  for(let i=1; i<=5; i++){
+    const url = raw[`sptDscrptDocUrl${i}`];
+    if(url) links.push({ name: `시방서 ${i}`, url });
+  }
+  if(raw.stdNtceDocUrl) links.push({ name: "표준입찰공고서", url: raw.stdNtceDocUrl });
+  return links;
+}
+
+function renderBidDetail(it){
+  const raw = it.raw || {};
+  const industry = [raw.mainCnsttyNm, ...Array.from({length:9}, (_,i)=>raw[`subsiCnsttyNm${i+1}`])]
+    .filter(Boolean).join(", ") || "정보없음";
+
+  const basicRows = [
+    detailRow("업종", industry),
+    detailRow("공고번호", it.공고번호),
+    detailRow("지역", it.지역제한 || "정보없음"),
+    detailRow("발주기관", raw.ntceInsttNm),
+    detailRow("수요기관", raw.dminsttNm),
+    detailRow("계약방법", raw.cntrctCnclsMthdNm),
+    detailRow("예가방법", raw.prearngPrceDcsnMthdNm),
+    detailRow("담당자", raw.ntceInsttOfclNm ? `${raw.ntceInsttOfclNm} (${raw.ntceInsttOfclTelNo || "-"})` : raw.ntceInsttOfclTelNo),
+    detailRow("낙찰하한율", raw.sucsfbidLwltRate ? raw.sucsfbidLwltRate + "%" : ""),
+    detailRow("기초금액", it.기초금액 != null ? fmtMoney(it.기초금액) : ""),
+    detailRow("추정가격", it.추정가격 != null ? fmtMoney(it.추정가격) : ""),
+  ].join("");
+
+  const dateRows = [
+    detailRow("공고게시일", it.게시일),
+    detailRow("입력일", raw.rgstDt),
+    detailRow("PQ마감일시", raw.pqApplDocRcptDt),
+    detailRow("실적제출마감", raw.arsltApplDocRcptDt),
+    detailRow("참가등록마감", raw.bidQlfctRgstDt),
+    detailRow("협정마감일시", raw.cmmnSpldmdAgrmntClseDt),
+    detailRow("투찰시작일", raw.bidBeginDt),
+    detailRow("현장설명일시", raw.dcmtgOprtnDt),
+    detailRow("투찰마감일시", it.투찰마감일시),
+    detailRow("개찰일시", it.개찰일시),
+  ].join("");
+
+  const attachments = buildAttachmentLinks(raw);
+  const attachHtml = attachments.length
+    ? attachments.map(a=>`<div class="attlink"><a href="${a.url}" target="_blank" rel="noopener">📎 ${a.name}</a></div>`).join("")
+    : `<div class="detail-empty">첨부된 링크파일이 없습니다.</div>`;
+
+  const detailUrl = raw.bidNtceDtlUrl ||
+    (raw.bidNtceNo ? `https://www.g2b.go.kr/link/PNPE027_01/single/?bidPbancNo=${raw.bidNtceNo}&bidPbancOrd=${raw.bidNtceOrd || "000"}` : "");
+
+  return `
+    <div class="biddetail">
+      <div class="biddetail-head">
+        ${it.취소여부 ? '<span class="badge-cancel">취소</span>' : ""}
+        <span class="biddetail-title">${it.공고명}</span>
+      </div>
+
+      <div class="biddetail-section">
+        <div class="biddetail-sectitle">기본정보</div>
+        <table class="detailtable"><tbody>${basicRows}</tbody></table>
+      </div>
+
+      <div class="biddetail-section">
+        <div class="biddetail-sectitle">일시정보</div>
+        <table class="detailtable"><tbody>${dateRows}</tbody></table>
+      </div>
+
+      <div class="biddetail-section">
+        <div class="biddetail-sectitle">공고원문</div>
+        <div class="detail-note">링크파일</div>
+        ${attachHtml}
+        <div class="detail-note" style="margin-top:10px;">공고문 내용</div>
+        <div class="detail-empty">
+          이 조회 API는 목록 요약 정보만 제공하고 공사입찰설명서 본문 텍스트는 포함하지 않습니다.
+          위 첨부 링크파일을 열어보시거나, 아래 나라장터 원문 페이지에서 전체 내용을 확인하세요.
+        </div>
+        ${detailUrl ? `<div style="margin-top:8px;"><a class="btn" style="display:inline-block;text-decoration:none;" href="${detailUrl}" target="_blank" rel="noopener">🔗 나라장터(G2B) 원문 바로가기</a></div>` : ""}
+      </div>
+    </div>
+  `;
+}
 
 function activeFilterChips(){
   const chips = [];
@@ -225,15 +524,22 @@ function activeFilterChips(){
     const label = state.priceType === "bssamt" ? "기초금액" : "추정가격";
     chips.push(`${label}: ${state.priceMin?Number(state.priceMin).toLocaleString():"0"}원 ~ ${state.priceMax?Number(state.priceMax).toLocaleString():"제한없음"}`);
   }
+  if(state.includeKeyword) chips.push("포함어: " + state.includeKeyword);
   if(state.excludeKeyword) chips.push("제외어: " + state.excludeKeyword);
-  chips.push("정렬: " + (state.sort==="open"?"개찰일순":"게시일순"));
+  chips.push("정렬: " + (state.sort==="open"?"개찰일순(임박순)":"게시일순(최신순)"));
   return chips;
 }
 
 /* ============================================================
    MAIN RENDER
+   렌더링을 4개 구역(프록시/회사탭/검색조건/결과표)으로 나눠서,
+   구역별로 필요한 부분만 다시 그린다. 특히 회사 탭 전환처럼
+   "조회 결과 표(대량 DOM)"는 그대로 두고 조건 카드만 바뀌면 되는
+   경우, 표 전체를 매번 다시 그리지 않아 체감 속도가 빨라진다.
    ============================================================ */
-function render(){
+let proxyContainer, companyContainer, filterContainer, resultContainer;
+
+function initApp(){
   const app = document.getElementById("app");
   app.innerHTML = "";
 
@@ -244,7 +550,23 @@ function render(){
     </div>
   `));
 
-  // A. 프록시 서버
+  proxyContainer = document.createElement("div");
+  companyContainer = document.createElement("div");
+  filterContainer = document.createElement("div");
+  resultContainer = document.createElement("div");
+  app.appendChild(proxyContainer);
+  app.appendChild(companyContainer);
+  app.appendChild(filterContainer);
+  app.appendChild(resultContainer);
+
+  renderProxySection();
+  renderCompanyTabsSection();
+  renderFilterSection();
+  renderResultSection();
+}
+
+function renderProxySection(){
+  proxyContainer.innerHTML = "";
   const proxyCard = el(`
     <div class="card">
       <h3><span class="tag">A</span>프록시 서버 연결</h3>
@@ -261,19 +583,133 @@ function render(){
     state.proxyBase = e.target.value.trim();
     localStorage.setItem("bidlog_proxyBase", state.proxyBase);
   };
-  app.appendChild(proxyCard);
+  proxyContainer.appendChild(proxyCard);
+}
 
-  // B. 검색조건
-  app.appendChild(renderFilterCard());
+function renderCompanyTabsSection(){
+  companyContainer.innerHTML = "";
+  companyContainer.appendChild(renderCompanyTabsCard());
+}
 
-  // C. 결과
-  app.appendChild(renderResultCard());
+function renderFilterSection(){
+  filterContainer.innerHTML = "";
+  filterContainer.appendChild(renderFilterCard());
+}
+
+function renderResultSection(){
+  resultContainer.innerHTML = "";
+  resultContainer.appendChild(renderResultCard());
+}
+
+// 검색조건/회사탭/프록시만 다시 그린다 (표는 그대로 유지 — 빠름)
+function renderControls(){
+  renderProxySection();
+  renderCompanyTabsSection();
+  renderFilterSection();
+}
+// 전체를 다시 그린다 (검색 실행 등 결과가 실제로 바뀔 때만 사용)
+function renderAll(){
+  renderControls();
+  renderResultSection();
+}
+
+function renderCompanyTabsCard(){
+  const card = el(`
+    <div class="card">
+      <h3><span class="tag">B</span>회사별 탭</h3>
+      <div class="note">탭을 만들면 지금 화면에 설정된 업종·지역·가격·제외키워드 조건이 그 회사 전용으로 저장됩니다. 탭을 누르면 저장된 조건을 바로 불러옵니다. 조건을 바꾼 뒤에는 "현재 조건을 이 탭에 저장" 버튼으로 갱신하세요. 탭을 드래그하면 순서를 바꿀 수 있습니다. (날짜 범위·정렬기준은 탭에 저장되지 않고 매번 따로 선택합니다.)</div>
+      <div class="tabbar" id="companyTabs"></div>
+      <div class="row">
+        <button class="btn primary" id="btnSaveCompany" ${state.activeCompanyId ? "" : "disabled"}>현재 조건을 이 탭에 저장</button>
+      </div>
+    </div>
+  `);
+
+  const tabbar = card.querySelector("#companyTabs");
+  state.companies.forEach(co=>{
+    const tab = el(`
+      <span class="companytab ${co.id===state.activeCompanyId?"active":""}" data-id="${co.id}" draggable="true">
+        <span class="tabname">${co.name}</span>
+        <span class="del" data-id="${co.id}" title="탭 삭제">✕</span>
+      </span>
+    `);
+    tab.querySelector(".tabname").onclick = ()=>{
+      const co2 = state.companies.find(c=>c.id===co.id);
+      if(!co2) return;
+      state.activeCompanyId = co.id;
+      applyFilterSnapshot(co2.filters);
+      saveActiveCompanyId();
+      renderControls(); // 표는 그대로 두고 조건 부분만 다시 그림 (빠른 전환)
+    };
+    tab.querySelector(".del").onclick = (ev)=>{
+      ev.stopPropagation();
+      if(!confirm(`"${co.name}" 탭을 삭제할까요? (저장된 검색조건도 함께 삭제됩니다)`)) return;
+      state.companies = state.companies.filter(c=>c.id!==co.id);
+      saveCompanies();
+      if(state.activeCompanyId === co.id){
+        const next = state.companies[0];
+        state.activeCompanyId = next ? next.id : "";
+        if(next) applyFilterSnapshot(next.filters);
+        saveActiveCompanyId();
+      }
+      renderControls();
+    };
+
+    // 드래그로 탭 순서 바꾸기
+    tab.ondragstart = (ev)=>{
+      ev.dataTransfer.effectAllowed = "move";
+      ev.dataTransfer.setData("text/plain", co.id);
+      tab.classList.add("dragging");
+    };
+    tab.ondragend = ()=> tab.classList.remove("dragging");
+    tab.ondragover = (ev)=>{ ev.preventDefault(); tab.classList.add("drag-over"); };
+    tab.ondragleave = ()=> tab.classList.remove("drag-over");
+    tab.ondrop = (ev)=>{
+      ev.preventDefault();
+      tab.classList.remove("drag-over");
+      const draggedId = ev.dataTransfer.getData("text/plain");
+      if(!draggedId || draggedId === co.id) return;
+      const fromIdx = state.companies.findIndex(c=>c.id===draggedId);
+      const toIdx = state.companies.findIndex(c=>c.id===co.id);
+      if(fromIdx === -1 || toIdx === -1) return;
+      const [moved] = state.companies.splice(fromIdx, 1);
+      state.companies.splice(toIdx, 0, moved);
+      saveCompanies();
+      renderControls();
+    };
+
+    tabbar.appendChild(tab);
+  });
+
+  // 탭 줄 맨 끝에 "+" 탭 (새 회사 추가)
+  const addTab = el(`<span class="addtab" title="새 회사 탭 추가">＋</span>`);
+  addTab.onclick = ()=>{
+    const name = prompt("새 회사(탭) 이름을 입력하세요 (예: OO건설)");
+    if(!name || !name.trim()) return;
+    const id = "co_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
+    state.companies.push({ id, name: name.trim(), filters: getFilterSnapshot() });
+    state.activeCompanyId = id;
+    saveCompanies();
+    saveActiveCompanyId();
+    renderControls();
+  };
+  tabbar.appendChild(addTab);
+
+  card.querySelector("#btnSaveCompany").onclick = ()=>{
+    const co = state.companies.find(c=>c.id===state.activeCompanyId);
+    if(!co) return;
+    co.filters = getFilterSnapshot();
+    saveCompanies();
+    alert(`"${co.name}" 탭에 현재 검색조건을 저장했습니다.`);
+  };
+
+  return card;
 }
 
 function renderFilterCard(){
   const card = el(`
     <div class="card">
-      <h3><span class="tag">B</span>검색조건</h3>
+      <h3><span class="tag">C</span>검색조건</h3>
 
       <div class="row">
         <div class="field grow">
@@ -387,14 +823,21 @@ function renderFilterCard(){
         <div class="field">
           <label>정렬기준</label>
           <select id="sort">
-            <option value="reg" ${state.sort==="reg"?"selected":""}>게시일순</option>
-            <option value="open" ${state.sort==="open"?"selected":""}>개찰일순</option>
+            <option value="reg" ${state.sort==="reg"?"selected":""}>게시일순(최신순)</option>
+            <option value="open" ${state.sort==="open"?"selected":""}>개찰일순(임박순)</option>
           </select>
+        </div>
+        <div class="field grow">
+          <label>포함 키워드 (공고명 기준, 콤마로 구분 — OR)</label>
+          <input type="text" id="includeKeyword" value="${state.includeKeyword}" placeholder="예: 폐기물보관시설, 리모델링">
         </div>
         <div class="field grow">
           <label>제외 키워드 (공고명 기준, 콤마로 구분)</label>
           <input type="text" id="excludeKeyword" value="${state.excludeKeyword}" placeholder="예: 수의, 소액">
         </div>
+      </div>
+      <div class="row">
+        <span class="checkline"><input type="checkbox" id="includeD2B" ${state.includeD2B?"checked":""}> 국방조달본부(D2B) 공고 포함 <span style="color:var(--ink-soft);font-weight:400;">— 이 발주처는 업종/지역/가격 필터가 적용되지 않습니다</span></span>
       </div>
 
       <div class="chipbar" id="chipbar"></div>
@@ -409,38 +852,49 @@ function renderFilterCard(){
 
   card.querySelector("#btnTodayOpen").onclick = ()=>{
     state.dateType = "open";
+    state.sort = "open";
     state.startDate = todayStr();
     state.endDate = todayStr();
-    render();
+    renderControls();
     fetchBidlog();
   };
-  card.querySelector("#dateType").onchange = e=> { state.dateType = e.target.value; render(); };
-  card.querySelector("#startDate").onchange = e=> { state.startDate = e.target.value; render(); };
-  card.querySelector("#endDate").onchange = e=> { state.endDate = e.target.value; render(); };
+  card.querySelector("#dateType").onchange = e=>{
+    state.dateType = e.target.value;
+    // 날짜기준을 개찰일로 바꾸면 정렬도 자동으로 "개찰일순(임박순)"으로 맞춰준다.
+    // 게시일 기준으로 바꾸면 정렬도 게시일순(최신순)으로. 사용자가 정렬기준을
+    // 다시 직접 바꾸면 그 선택이 그대로 유지된다.
+    if(state.dateType === "open") state.sort = "open";
+    else if(state.dateType === "reg") state.sort = "reg";
+    renderControls();
+  };
+  card.querySelector("#startDate").onchange = e=> { state.startDate = e.target.value; renderControls(); };
+  card.querySelector("#endDate").onchange = e=> { state.endDate = e.target.value; renderControls(); };
   card.querySelectorAll("[data-range]").forEach(btn=>{
     btn.onclick = ()=>{
       const n = parseInt(btn.dataset.range,10);
       state.endDate = todayStr();
       state.startDate = n===0 ? todayStr() : addDays(new Date(), -n);
-      render();
+      renderControls();
     };
   });
   card.querySelectorAll("[data-ind]").forEach(sel=>{
-    sel.onchange = e=>{ state.industries[parseInt(sel.dataset.ind,10)] = e.target.value; render(); };
+    sel.onchange = e=>{ state.industries[parseInt(sel.dataset.ind,10)] = e.target.value; renderControls(); };
   });
   card.querySelectorAll("[data-reg]").forEach(sel=>{
-    sel.onchange = e=>{ state.regions[parseInt(sel.dataset.reg,10)] = e.target.value; render(); };
+    sel.onchange = e=>{ state.regions[parseInt(sel.dataset.reg,10)] = e.target.value; renderControls(); };
   });
-  card.querySelector("#excludeInHouse").onchange = e=> { state.excludeInHouse = e.target.checked; render(); };
-  card.querySelector("#strictIndustry").onchange = e=> { state.strictIndustry = e.target.checked; render(); };
-  card.querySelector("#priceType").onchange = e=> { state.priceType = e.target.value; render(); };
+  card.querySelector("#excludeInHouse").onchange = e=> { state.excludeInHouse = e.target.checked; renderControls(); };
+  card.querySelector("#strictIndustry").onchange = e=> { state.strictIndustry = e.target.checked; renderControls(); };
+  card.querySelector("#priceType").onchange = e=> { state.priceType = e.target.value; renderControls(); };
   card.querySelector("#priceMin").oninput = e=> state.priceMin = e.target.value;
   card.querySelector("#priceMax").oninput = e=> state.priceMax = e.target.value;
   card.querySelectorAll("[data-price]").forEach(btn=>{
-    btn.onclick = ()=>{ state.priceMin = btn.dataset.price; render(); };
+    btn.onclick = ()=>{ state.priceMin = btn.dataset.price; renderControls(); };
   });
-  card.querySelector("#sort").onchange = e=> { state.sort = e.target.value; render(); };
+  card.querySelector("#sort").onchange = e=> { state.sort = e.target.value; renderControls(); };
+  card.querySelector("#includeKeyword").oninput = e=> state.includeKeyword = e.target.value;
   card.querySelector("#excludeKeyword").oninput = e=> state.excludeKeyword = e.target.value;
+  card.querySelector("#includeD2B").onchange = e=> { state.includeD2B = e.target.checked; renderControls(); };
   card.querySelector("#btnSearch").onclick = fetchBidlog;
   card.querySelector("#btnExcel").onclick = exportExcel;
 
@@ -461,19 +915,20 @@ function regionOptionsHtml(selected){
 }
 
 function renderResultCard(){
+  const activeCo = state.companies.find(c => c.id === state.activeCompanyId);
   const card = el(`
     <div class="card">
       <div class="resulthead">
-        <h3 style="margin:0;"><span class="tag">C</span>조회 결과</h3>
+        <h3 style="margin:0;"><span class="tag">D</span>조회 결과${activeCo ? ` <span style="font-weight:400;color:var(--ink-soft);">— ${activeCo.name}</span>` : ""}</h3>
         <span class="count">${state.items.length}건</span>
       </div>
       <div class="tablewrap">
         <table>
           <thead>
             <tr>
-              <th>번호</th><th>게시일</th><th>개찰일시</th><th>공고명</th><th>공고번호</th>
+              <th>번호</th><th>출처</th><th>게시일</th><th>개찰일시</th><th>공고명</th><th>공고번호</th>
               <th>발주기관</th><th>추정가격</th><th>기초금액</th><th>참가마감</th><th>투찰마감</th>
-              <th>업종제한</th><th>지역제한</th><th>원본</th>
+              <th>업종제한</th><th>지역제한</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -486,14 +941,34 @@ function renderResultCard(){
   if(state.items.length === 0){
     tbody.appendChild(el(`<tr><td colspan="13" style="text-align:center;color:var(--ink-soft);padding:20px;">조회된 데이터가 없습니다. 위에서 검색조건을 설정하고 "나라장터 조회"를 눌러주세요.</td></tr>`));
   } else {
+    // 같은 bidNtceNo(공고번호, 차수 제외)를 공유하는 항목끼리 그룹핑.
+    // 그룹에 2건 이상 있으면(=원공고/정정/취소 등 여러 차수가 있으면)
+    // "정정내역" 드롭다운을 달아, 다른 차수 행으로 바로 이동해서 볼 수 있게 한다.
+    const groupMap = new Map(); // bidNtceNo -> [itemIndex, ...]
+    state.items.forEach((it, i)=>{
+      const baseNo = it.raw?.bidNtceNo;
+      if(!baseNo) return;
+      if(!groupMap.has(baseNo)) groupMap.set(baseNo, []);
+      groupMap.get(baseNo).push(i);
+    });
+
     state.items.forEach((it, i)=>{
       const isCancelled = !!it.취소여부;
+      const baseNo = it.raw?.bidNtceNo;
+      const group = baseNo ? (groupMap.get(baseNo) || [i]) : [i];
+      const hasRevisions = group.length > 1;
+      const sourceShort = (it.출처 || "나라장터(G2B)").includes("D2B") ? "D2B" : "G2B";
+
       const tr = el(`
-        <tr class="${isCancelled ? "cancelled-row" : ""}">
+        <tr class="${isCancelled ? "cancelled-row" : ""}" data-idx="${i}">
           <td>${i+1}</td>
+          <td style="white-space:normal;font-size:11px;color:var(--ink-soft);" title="${it.출처 || "나라장터(G2B)"}">${sourceShort}</td>
           <td style="white-space:normal;">${it.게시일 || "—"}</td>
           <td style="white-space:normal;">${it.개찰일시 || "—"}</td>
-          <td style="white-space:normal;min-width:320px;max-width:480px;">${isCancelled ? '<span class="badge-cancel">취소</span>' : ""}${it.공고명}</td>
+          <td style="white-space:normal;min-width:320px;max-width:480px;">
+            ${isCancelled ? '<span class="badge-cancel">취소</span>' : ""}<span class="bidname-link" data-idx="${i}" title="클릭하면 공고 원본(API 응답)을 볼 수 있습니다">${it.공고명}</span>
+            ${hasRevisions ? `<div><button class="revtoggle" data-idx="${i}">정정내역 ▾</button></div>` : ""}
+          </td>
           <td>${it.공고번호}</td>
           <td style="white-space:normal;">${it.발주기관}</td>
           <td class="num">${fmtMoney(it.추정가격)}</td>
@@ -502,16 +977,54 @@ function renderResultCard(){
           <td style="white-space:normal;">${it.투찰마감일시 || "—"}</td>
           <td style="white-space:normal;max-width:140px;">${it.업종제한 === "정보없음" ? '<span style="color:var(--amber-deep);">정보없음</span>' : it.업종제한}</td>
           <td>${it.지역제한 || "—"}</td>
-          <td><button class="rawtoggle" data-idx="${i}">보기</button></td>
         </tr>
       `);
-      tr.querySelector(".rawtoggle").onclick = ()=>{
+      tr.querySelector(".bidname-link").onclick = ()=>{
         state.expandedRow = state.expandedRow === i ? null : i;
-        render();
+        renderResultSection(); // 표만 다시 그림
       };
+      if(hasRevisions){
+        tr.querySelector(".revtoggle").onclick = ()=>{
+          state.expandedRevision = state.expandedRevision === i ? null : i;
+          renderResultSection();
+        };
+      }
       tbody.appendChild(tr);
+
+      if(hasRevisions && state.expandedRevision === i){
+        // 차수(공고차수) 내림차순으로: 최신(변경/취소)이 위, 원공고가 아래
+        const sortedGroup = [...group].sort((a,b)=>{
+          const oa = parseInt(state.items[a].raw?.bidNtceOrd || "0", 10);
+          const ob = parseInt(state.items[b].raw?.bidNtceOrd || "0", 10);
+          return ob - oa;
+        });
+        const listHtml = sortedGroup.map(gi=>{
+          const git = state.items[gi];
+          const ord = git.raw?.bidNtceOrd || "0";
+          const label = ord === "0" || ord === "000" ? "원공고" : `${parseInt(ord,10)}차 변경`;
+          const cancelTag = git.취소여부 ? ' <span class="badge-cancel" style="margin-left:4px;">취소</span>' : "";
+          if(gi === i){
+            return `<div class="revitem"><span class="revcur">${label} · ${git.공고번호} (현재 보는 중)</span>${cancelTag}</div>`;
+          }
+          return `<div class="revitem"><button data-goto="${gi}">${label} · ${git.공고번호} 보기</button>${cancelTag}</div>`;
+        }).join("");
+        const revRow = el(`<tr class="revrow"><td colspan="13"><div class="revlist">${listHtml}</div></td></tr>`);
+        revRow.querySelectorAll("[data-goto]").forEach(btn=>{
+          btn.onclick = ()=>{
+            const targetIdx = btn.dataset.goto;
+            const targetRow = tbody.querySelector(`tr[data-idx="${targetIdx}"]`);
+            if(!targetRow) return;
+            targetRow.scrollIntoView({ behavior:"smooth", block:"center" });
+            targetRow.classList.remove("row-flash");
+            void targetRow.offsetWidth; // 리플로우 강제 (애니메이션 재실행용)
+            targetRow.classList.add("row-flash");
+          };
+        });
+        tbody.appendChild(revRow);
+      }
+
       if(state.expandedRow === i){
-        tbody.appendChild(el(`<tr class="rawrow"><td colspan="13">${JSON.stringify(it.raw, null, 2)}</td></tr>`));
+        tbody.appendChild(el(`<tr class="rawrow"><td colspan="13">${renderBidDetail(it)}</td></tr>`));
       }
     });
   }
@@ -522,7 +1035,7 @@ function renderResultCard(){
 /* ============================================================
    INIT
    ============================================================ */
-render();
+initApp();
 </script>
 </body>
 </html>
